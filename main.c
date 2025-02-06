@@ -7,7 +7,7 @@
 #define MAX_CLAS_EXT 1
 #define MAX_CLAS_INT 1
 
-#define ARCHIVO_BASE "G"
+#define ARCHIVO_BASE "your file"
 
 int main() {
     printf("Iniciando el programa...\n");
