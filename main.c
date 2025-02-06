@@ -7,9 +7,12 @@
 #define MAX_CLAS_EXT 1
 #define MAX_CLAS_INT 1
 
-#define ARCHIVO_BASE "your file"
-
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Error: No se ingresó el nombre del archivo.\n");
+        return 1;
+    }
+    const char *ARCHIVO_BASE = argv[1];
     printf("Iniciando el programa...\n");
 
     double cond_dir_ext[MAX_CLAS_EXT] = {0};
