@@ -204,8 +204,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-
-    // Inicialización del vector U
+    
     memset(U, 0, n_p * sizeof(double));
 
     invertMatrix(n_p,G,invG);
