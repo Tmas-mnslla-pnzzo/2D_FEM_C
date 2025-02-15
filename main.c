@@ -4,8 +4,12 @@
 #include <math.h>
 #include "fem_funciones.h"
 
+#define TIEMPO_INICIAL 0
+#define TIEMPO_FINAL 1
+#define TIEMPO_DELTA 100
 #define MAX_CLAS_EXT 1
 #define MAX_CLAS_INT 1
+#define TERMINO_TEMPORAL 1
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
@@ -15,21 +19,29 @@ int main(int argc, char *argv[]) {
     const char *ARCHIVO_BASE = argv[1];
     printf("Iniciando el programa...\n");
 
-    double cond_dir_ext[MAX_CLAS_EXT] = {0};
+    double cond_init_ext[MAX_CLAS_EXT] = {10};
+    double cond_init_int[MAX_CLAS_INT] = {0};
+    double cond_dir_ext[MAX_CLAS_EXT] = {10};
     double cond_dir_int[MAX_CLAS_INT] = {0};
+
     double puntos[MAX_LIST_LENGTH][2]; 
     int triangulos[MAX_LIST_LENGTH][3];  
     char clasificaciones[MAX_LIST_LENGTH][MAX_CELL_LENGTH]; 
     int n_p = 0; 
     int n_t = 0;  
-    char nombre_archivo[MAX_CELL_LENGTH];
+    int n_c = 0;  
+    char nombre_archivo_p[MAX_CELL_LENGTH];
+    char nombre_archivo_t[MAX_CELL_LENGTH];
+    char nombre_archivo_c[MAX_CELL_LENGTH];
     char nombre_archivo_csv[MAX_CELL_LENGTH];
 
     snprintf(nombre_archivo_csv, MAX_CELL_LENGTH, "resultado_U_de_%s.csv", ARCHIVO_BASE);
-    snprintf(nombre_archivo, MAX_CELL_LENGTH, "%s_puntos.csv", ARCHIVO_BASE);
+    snprintf(nombre_archivo_p, MAX_CELL_LENGTH, "%s_puntos.csv", ARCHIVO_BASE);
+    snprintf(nombre_archivo_t, MAX_CELL_LENGTH, "%s_elementos.csv", ARCHIVO_BASE);
+    snprintf(nombre_archivo_c, MAX_CELL_LENGTH, "%s_clas.csv", ARCHIVO_BASE);
 
     printf("Leyendo archivo de puntos...\n");
-    FILE *file_puntos = fopen(nombre_archivo, "r");
+    FILE *file_puntos = fopen(nombre_archivo_p, "r");
     if (file_puntos == NULL) {
         perror("Error al abrir el archivo G_puntos.csv");
         return 1;
@@ -52,8 +64,7 @@ int main(int argc, char *argv[]) {
     printf("Archivo de puntos leído. Total de puntos: %d\n", n_p);
 
     printf("Leyendo archivo de triángulos...\n");
-    snprintf(nombre_archivo, MAX_CELL_LENGTH, "%s_elementos.csv", ARCHIVO_BASE);
-    FILE *file_triangulos = fopen(nombre_archivo, "r");
+    FILE *file_triangulos = fopen(nombre_archivo_t, "r");
     if (file_triangulos == NULL) {
         perror("Error al abrir el archivo G_triangulos.csv");
         return 1;
@@ -75,8 +86,7 @@ int main(int argc, char *argv[]) {
     printf("Archivo de triángulos leído. Total de triángulos: %d\n", n_t);
 
     printf("Leyendo archivo de clasificaciones...\n");
-    snprintf(nombre_archivo, MAX_CELL_LENGTH, "%s_clas.csv", ARCHIVO_BASE);
-    FILE *file_clasificaciones = fopen(nombre_archivo, "r");
+    FILE *file_clasificaciones = fopen(nombre_archivo_c, "r");
     if (file_clasificaciones == NULL) {
         perror("Error al abrir el archivo G_clasificaciones.csv");
         return 1;
@@ -84,11 +94,13 @@ int main(int argc, char *argv[]) {
 
     while (fgets(line, sizeof(line), file_clasificaciones)) {
         line[strcspn(line, "\n")] = 0;
-        if (n_p < MAX_LIST_LENGTH) {
-            strncpy(clasificaciones[n_p], line, MAX_CELL_LENGTH - 1);
-            clasificaciones[n_p][MAX_CELL_LENGTH - 1] = '\0';
+        if (n_c < MAX_LIST_LENGTH) {
+            strncpy(clasificaciones[n_c], line, MAX_CELL_LENGTH - 1);
+            clasificaciones[n_c][MAX_CELL_LENGTH - 1] = '\0';
+            n_c++;
         }
     }
+
     fclose(file_clasificaciones);
     printf("Archivo de clasificaciones leído.\n");
 
@@ -100,21 +112,12 @@ int main(int argc, char *argv[]) {
     double **A = malloc(n_p * sizeof(double *));
     double *F = malloc(n_p * sizeof(double));
 
-    if (!G || !M || !C || !B || !A || !F) {
-        perror("Error en la asignación de memoria");
-        return 1;
-    }
-
     for (int i = 0; i < n_p; i++) {
         G[i] = calloc(n_p, sizeof(double));
         M[i] = calloc(n_p, sizeof(double));
         C[i] = calloc(n_p, sizeof(double));
         B[i] = calloc(n_p, sizeof(double));
         A[i] = calloc(n_p, sizeof(double));
-        if (!G[i] || !M[i] || !C[i] || !B[i] || !A[i]) {
-            perror("Error en la asignación de memoria para las matrices");
-            return 1;
-        }
     }
 
     memset(F, 0, n_p * sizeof(double));
@@ -172,66 +175,147 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    
+
     printf("Matrices globales construidas.\n");
 
-    for (int j = 0; j < n_p; j++) {
-        for (int k = 0; k < n_p; k++) {
-            G[j][k] = A[j][k] + B[j][k] + C[j][k];
+    if (TERMINO_TEMPORAL){
+        borrar_contenido_archivo("resultados_U.bin");
+
+        double k_t = (TIEMPO_FINAL-TIEMPO_INICIAL) / (1.0 * TIEMPO_DELTA);
+    
+        double **Gt = malloc(n_p * sizeof(double *));
+        double *Ft = malloc(n_p * sizeof(double));
+        double *U = malloc(n_p * sizeof(double));
+
+        for (int i = 0; i < n_p; i++) {
+            Gt[i] = calloc(n_p, sizeof(double));
         }
-    }
-    
-    printf("Aplicando condiciones de frontera a las matrices...\n");
-    aplicar_dir_M(G, clasificaciones, n_p);
 
-    printf("Aplicando condiciones de frontera a los vectores...\n");
-    aplicar_dir_ext_V(cond_dir_ext, MAX_CLAS_EXT, puntos, F, clasificaciones, n_p);
-    aplicar_dir_int_V(cond_dir_int, MAX_CLAS_INT, puntos, F, clasificaciones, n_p);
-    printf("Condiciones de frontera aplicadas.\n");
-    
-    double **invG = malloc(n_p * sizeof(double *));
-    double *U = malloc(n_p * sizeof(double));
-
-    if (!invG || !U) {
-        perror("Error en la asignación de memoria para invG y U");
-        return 1;
-    }
-
-    for (int i = 0; i < n_p; i++) {
-        invG[i] = malloc(n_p * sizeof(double));
-        if (!invG[i]) {
-            perror("Error en la asignación de memoria para invG[i]");
-            return 1;
+        for (int j = 0; j < n_p; j++) {
+            for (int k = 0; k < n_p; k++) {
+                Gt[j][k] = M[j][k] + k_t*(A[j][k]+B[j][k]+C[j][k]);
+            }
         }
+
+        memset(Ft, 0, n_p * sizeof(double));
+        memset(U, 0, n_p * sizeof(double));
+
+        aplicar_init(cond_init_ext, MAX_CLAS_EXT, puntos, U, clasificaciones, n_p, "ext");
+        aplicar_init(cond_init_int, MAX_CLAS_INT, puntos, U, clasificaciones, n_p, "int");
+
+        mulMatVec(n_p, n_p, M, U, Ft);
+
+        guardar_vectores_bin("resultados_U.bin",U, n_p, 0);
+
+        for (int j = 0; j < n_p; j++) {Ft[j] +=F[j]*k_t;}
+
+        for (int i = 0; i < n_p; i++) {
+            free(G[i]);
+            free(C[i]);
+            free(B[i]);
+            free(A[i]);
+        }
+        free(G);
+        free(C);
+        free(B);
+        free(A);
+
+        double **invGt = malloc(n_p * sizeof(double *));
+
+        for (int i = 0; i < n_p; i++) {invGt[i] = malloc(n_p * sizeof(double));}
+
+        printf("Aplicando condiciones de frontera a las matrices...\n");
+
+        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
+        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
+        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+
+        invertMatrix(n_p,Gt,invGt);
+        
+        printf("...\n");
+        printf("%d",n_p);
+        printf("Comenzando iteración transitoria...\n");
+        for (int t = 0; t <= TIEMPO_DELTA; t++) {
+            printf("Tiempo calculado: %3f s\n",k_t*t);
+            
+            mulMatVec(n_p, n_p, invGt, Ft, U);
+            
+            printVec(U,n_p,9);
+
+            guardar_vectores_bin("resultados_U.bin",U, n_p, t+1);
+
+            mulMatVec(n_p, n_p, M, U, Ft);
+            
+            for (int j = 0; j < n_p; j++) {
+                Ft[j] =Ft[j]+F[j]*k_t;
+            }
+            
+            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
+            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+        }
+
+        for (int i = 0; i < n_p; i++) {
+            free(invGt[i]);
+            free(Gt[i]);
+            free(M[i]);
+        }
+        free(Gt);
+        free(M);
+        free(invGt);
+        free(Ft);
+        free(F);
+        free(U);
+
+    } else {
+
+        for (int j = 0; j < n_p; j++) {
+            for (int k = 0; k < n_p; k++) {
+                G[j][k] = A[j][k] + B[j][k] + C[j][k];
+            }
+        }
+
+        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
+        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "ext");
+        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
+        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+
+        double **invG = malloc(n_p * sizeof(double *));
+        double *U = malloc(n_p * sizeof(double));
+
+        for (int i = 0; i < n_p; i++) {
+            invG[i] = malloc(n_p * sizeof(double));
+        }
+
+        memset(U, 0, n_p * sizeof(double));
+
+        invertMatrix(n_p,G,invG);
+
+        mulMatVec(n_p, n_p, invG, F, U);
+        
+        for (int i = 0; i < n_p; i++) {
+            free(G[i]);
+            free(M[i]);
+            free(C[i]);
+            free(B[i]);
+            free(A[i]);
+        }
+        free(G);
+        free(M);
+        free(C);
+        free(B);
+        free(A);
+        free(F);
+
+        guardarVectorCSV(nombre_archivo_csv, U, n_p);
+
+        for (int i = 0; i < n_p; i++) {
+            free(invG[i]);
+        }
+        free(invG);
+        free(U);
     }
-    
-    memset(U, 0, n_p * sizeof(double));
 
-    invertMatrix(n_p,G,invG);
-
-    for (int i = 0; i < n_p; i++) {
-        free(G[i]);
-        free(M[i]);
-        free(C[i]);
-        free(B[i]);
-        free(A[i]);
-    }
-    free(G);
-    free(M);
-    free(C);
-    free(B);
-    free(A);
-    free(F);
-
-    mulMatVec(n_p, n_p, invG, F, U);
-    guardarVectorCSV(nombre_archivo_csv, U, n_p);
-
-    for (int i = 0; i < n_p; i++) {
-        free(invG[i]);
-    }
-    free(invG);
-    free(U);
-    
     printf("Programa finalizado con éxito.\n");
     return 0;
 }
