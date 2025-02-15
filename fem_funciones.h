@@ -2,7 +2,7 @@
 #define FEMFUNCIONES_H
 #define MAX_LINE_LENGTH 1024
 #define MAX_CELL_LENGTH 400
-#define MAX_LIST_LENGTH 400
+#define MAX_LIST_LENGTH 4000
 
 typedef struct {
     double x1, y1, x2, y2, x3, y3;
@@ -10,8 +10,11 @@ typedef struct {
 } FuncParams;
 
 void printMat(double **mat, int N);
-void printVec(const double *vec, int N);
+void printVec(const double *vec, int N, int n);
 void guardarVectorCSV(const char *nombreArchivo, const double *vector, int n);
+
+void guardar_vectores_bin(const char *nombreArchivo, double *U, int n_p, int tiempo);
+void borrar_contenido_archivo(const char *nombreArchivo);
 
 double f_wrapper(double u, double v, void *params);
 
@@ -62,12 +65,10 @@ void productoPunto(int n, double vector1[n], double vector2[n], double *resultad
 void mulMatVec(int m, int n, double **matriz, double *vector, double *resultado);
 int invertMatrix(int n, double **mat, double **inv);
 
-double trapecio(double (*func)(double, double, void *), double a, double b, double y, int n, void *params);
 double gauss(double x1, double y1, double x2, double y2, double x3, double y3, double (*func)(double, double, double, double, double, double, double, double));
-double integrar(double (*func)(double, double, void *), void *params);
 
-void aplicar_dir_ext_V(double *Tb, int nTb, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP);
-void aplicar_dir_int_V(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP);
-void aplicar_dir_M(double **G, char cl[][MAX_CELL_LENGTH], int n);
+void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP, const char *prefix);
+void aplicar_dir_V(double *F, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix);
+void aplicar_dir_M(double **G, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix);
 
 #endif
