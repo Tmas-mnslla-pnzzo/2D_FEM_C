@@ -13,13 +13,18 @@ void printMat(double **mat, int N) {
     }
 }
 
-void printVec(const double *vec, int N) {
-    for (int i = 0; i < N; i++) {
+void printVec(const double *vec, int N, int n) {
+    if (n > N) {
+        n = N;  
+    }
+
+    int start = N - n;
+
+    for (int i = start; i < N; i++) {
         printf("%.6f\t", vec[i]);
     }
     printf("\n");
 }
-
 void guardarVectorCSV(const char *nombreArchivo, const double *vector, int n) {
     FILE *archivo = fopen(nombreArchivo, "w"); 
     if (archivo == NULL) {
@@ -34,6 +39,24 @@ void guardarVectorCSV(const char *nombreArchivo, const double *vector, int n) {
     printf("Vector guardado en %s\n", nombreArchivo);
 }
 
+void guardar_vectores_bin(const char *nombreArchivo, double *U, int n_p, int tiempo) {
+    FILE *archivo = fopen(nombreArchivo, "ab");  // "ab" → Append en binario
+    if (archivo == NULL) {
+        perror("Error al abrir el archivo binario");
+        return;
+    }
+    fwrite(U, sizeof(double), n_p, archivo);  // Guarda un vector U en cada instante
+    fclose(archivo);
+}
+
+void borrar_contenido_archivo(const char *nombreArchivo) {
+    FILE *archivo = fopen(nombreArchivo, "wb");  // "wb" → Write en binario (borra contenido)
+    if (archivo == NULL) {
+        perror("Error al abrir el archivo");
+        return;
+    }
+    fclose(archivo);  // Cierra el archivo inmediatamente (el contenido ya se borró al abrirlo en modo "wb")
+}
 
 double f_wrapper(double u, double v, void *params) {
     FuncParams *p = (FuncParams *)params;
@@ -105,19 +128,19 @@ double b_p33(double u, double v, double x1, double y1, double x2, double y2, dou
 }
 
 double f_0(double x, double y){
-    return x*y*(1-x)*(1-y);
+    return 0;
 }
 double c_0(double x, double y){
-    return x*y;
+    return 0;
 }
 double b1_0(double x, double y){
-    return x;
+    return 0;
 }
 double b2_0(double x, double y){
-    return y;
+    return 0;
 }
 double a_0(double x, double y){
-    return x+y;
+    return 1.0;
 }
 
 double f(double u, double v, double x1, double y1, double x2, double y2, double x3, double y3) {
@@ -205,14 +228,12 @@ int invertMatrix(int n, double **mat, double **inv) {
         memcpy(tempMat[i], mat[i], n * sizeof(double));
     }
 
-    // Inicializar la identidad en inv
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
             inv[i][j] = (i == j) ? 1.0 : 0.0;
         }
     }
 
-    // Algoritmo de Gauss-Jordan para invertir la matriz
     for (int i = 0; i < n; i++) {
         if (tempMat[i][i] == 0.0) {
             int swapRow = -1;
@@ -252,26 +273,12 @@ int invertMatrix(int n, double **mat, double **inv) {
         }
     }
 
-    // Liberar memoria de la copia
     for (int i = 0; i < n; i++) {
         free(tempMat[i]);
     }
     free(tempMat);
 
     return 1;
-}
-
-
-double trapecio(double (*func)(double, double, void *), double a, double b, double y, int n, void *params) {
-    double h = (b - a) / n;  
-    double sum = 0.5 * (func(a, y, params) + func(b, y, params));  
-
-    for (int i = 1; i < n; i++) {
-        double x = a + i * h;
-        sum += func(x, y, params);
-    }
-
-    return sum * h;
 }
 
 double gauss(double x1, double y1, double x2, double y2, double x3, double y3, double (*func)(double, double, double, double, double, double, double, double)) {
@@ -281,53 +288,29 @@ double gauss(double x1, double y1, double x2, double y2, double x3, double y3, d
     double integral = 0.0;
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 5; j++) {
-            double u = gauss_points[i];
-            double v = gauss_points[j];
-            double weight = gauss_weights[i] * gauss_weights[j];
+            double xi = gauss_points[i];
+            double eta = gauss_points[j];
+
+            double u = (1.0 + xi) / 2.0;
+            double v = (1.0 + eta) * (1.0 - u) / 2.0;
+
+            double jacobian = (1.0 - xi) / 8.0;
+
+            double weight = gauss_weights[i] * gauss_weights[j] * jacobian;
+
             integral += weight * func(u, v, x1, y1, x2, y2, x3, y3);
         }
     }
     return integral;
 }
 
-double integrar(double (*func)(double, double, void *), void *params) {
-    double a = 0.0, b = 1.0;
-    int n = 1000;
-    double h = (b - a) / n;
-    double sum = 0.0;
-
-    for (int i = 0; i < n; i++) {
-        double s = a + i * h;
-        double integral_y = 0.0;
-
-        for (int j = 0; j < n; j++) {
-            double r = a + j * h;
-            integral_y += func(r, s, params);
-        }
-        sum += integral_y * h;  
-    }
-    return sum * h; 
-}
-
-void aplicar_dir_ext_V(double *Tb, int nTb, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP) {
-    for (int i = 0; i < nP; i++) { 
-        for (int j = 0; j < nTb; j++) { 
-            char buffer[10];
-            snprintf(buffer, sizeof(buffer), "ext%d", j); 
-            if (strcmp(cl[i], buffer) == 0 && Tb[j] != -1) {  
-                U[i] = Tb[j];  
-            }
-        }
-    }
-}
-
-void aplicar_dir_int_V(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP) {
+void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP, const char *prefix) {
     if (nTbl == 0) return;  
 
     for (int i = 0; i < nP; i++) {  
         for (int j = 0; j < nTbl; j++) { 
             char buffer[10];
-            snprintf(buffer, sizeof(buffer), "int%d", j);  
+            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
             if (strcmp(cl[i], buffer) == 0 && Tbl[j] != -1) {
                 U[i] = Tbl[j];  
             }
@@ -335,13 +318,35 @@ void aplicar_dir_int_V(double *Tbl, int nTbl, double P[][2], double *U, char cl[
     }
 }
 
-void aplicar_dir_M(double **G, char cl[][MAX_CELL_LENGTH], int n) {
-    for (int j = 0; j < n; j++) {
-        if (strcmp(cl[j], "None") != 0) {
-            for (int k = 0; k < n; k++) {
-                G[j][k] = 0;
+void aplicar_dir_V(double *F, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix) {
+    if (nTbl == 0) {
+        return;  
+    }
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < nTbl; j++) {
+            char buffer[10];
+            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
+            if (strcmp(clas[i], buffer) == 0) {
+                F[i] = Tbl[j];  
             }
-            G[j][j] = 1;
+        }
+    }
+}
+
+void aplicar_dir_M(double **G, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix) {
+    if (nTbl == 0) {
+        return;  
+    }
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < nTbl; j++) {
+            char buffer[10];
+            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
+            if (strcmp(clas[i], buffer) == 0) {
+                for (int k = 0; k < n; k++) {
+                    G[i][k] = 0.0;
+                }
+                G[i][i] = 1.0;
+            }
         }
     }
 }
