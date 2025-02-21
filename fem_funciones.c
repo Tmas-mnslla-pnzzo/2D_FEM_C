@@ -140,7 +140,7 @@ double b2_0(double x, double y){
     return 0;
 }
 double a_0(double x, double y){
-    return 1.0;
+    return 1;
 }
 
 double f(double u, double v, double x1, double y1, double x2, double y2, double x3, double y3) {
@@ -282,12 +282,30 @@ int invertMatrix(int n, double **mat, double **inv) {
 }
 
 double gauss(double x1, double y1, double x2, double y2, double x3, double y3, double (*func)(double, double, double, double, double, double, double, double)) {
-    double gauss_points[5] = {-0.90618, -0.53847, 0.0, 0.53847, 0.90618};
-    double gauss_weights[5] = {0.23693, 0.47863, 0.56888, 0.47863, 0.23693};
+    int g_p=5;
+    double gauss_points[7] = {
+    -0.9491079123427585,
+    -0.7415311855993945,
+    -0.4058451513773972,
+    0.0,
+    0.4058451513773972,
+    0.7415311855993945,
+    0.9491079123427585
+    };
+
+    double gauss_weights[7] = {
+    0.1294849661688697,
+    0.2797053914892766,
+    0.3818300505051189,
+    0.4179591836734694,
+    0.3818300505051189,
+    0.2797053914892766,
+    0.1294849661688697
+    };
 
     double integral = 0.0;
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
+    for (int i = 0; i < g_p; i++) {
+        for (int j = 0; j < g_p; j++) {
             double xi = gauss_points[i];
             double eta = gauss_points[j];
 
@@ -304,44 +322,39 @@ double gauss(double x1, double y1, double x2, double y2, double x3, double y3, d
     return integral;
 }
 
-void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP, const char *prefix) {
-    if (nTbl == 0) return;  
-
+void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, int clas[][1], int nP, const char *prefix, int y) {
+    if (nTbl == 0) {
+        return;  
+    }
     for (int i = 0; i < nP; i++) {  
         for (int j = 0; j < nTbl; j++) { 
-            char buffer[10];
-            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
-            if (strcmp(cl[i], buffer) == 0 && Tbl[j] != -1) {
+            if (clas[i][0] == y*(j+1) && Tbl[j] != -1) {
                 U[i] = Tbl[j];  
             }
         }
     }
 }
 
-void aplicar_dir_V(double *F, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix) {
+void aplicar_dir_V(double *F, int clas[][1], int n, double *Tbl, int nTbl, const char *prefix, int y) {
     if (nTbl == 0) {
         return;  
     }
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < nTbl; j++) {
-            char buffer[10];
-            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
-            if (strcmp(clas[i], buffer) == 0) {
+            if (clas[i][0] == y*(j+1) && !isnan(Tbl[j])) {
                 F[i] = Tbl[j];  
             }
         }
     }
 }
 
-void aplicar_dir_M(double **G, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix) {
+void aplicar_dir_M(double **G, int clas[][1], int n, double *Tbl, int nTbl, const char *prefix, int y) {
     if (nTbl == 0) {
         return;  
     }
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < nTbl; j++) {
-            char buffer[10];
-            snprintf(buffer, sizeof(buffer), "%s%d", prefix, j);  
-            if (strcmp(clas[i], buffer) == 0) {
+            if (clas[i][0] == y*(j+1) && !isnan(Tbl[j])) {
                 for (int k = 0; k < n; k++) {
                     G[i][k] = 0.0;
                 }
