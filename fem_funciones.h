@@ -67,8 +67,8 @@ int invertMatrix(int n, double **mat, double **inv);
 
 double gauss(double x1, double y1, double x2, double y2, double x3, double y3, double (*func)(double, double, double, double, double, double, double, double));
 
-void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, char cl[][MAX_CELL_LENGTH], int nP, const char *prefix);
-void aplicar_dir_V(double *F, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix);
-void aplicar_dir_M(double **G, char clas[][MAX_CELL_LENGTH], int n, double *Tbl, int nTbl, const char *prefix);
+void aplicar_init(double *Tbl, int nTbl, double P[][2], double *U, int clas[][1], int nP, const char *prefix, int y);
+void aplicar_dir_V(double *F, int clas[][1], int n, double *Tbl, int nTbl, const char *prefix, int y);
+void aplicar_dir_M(double **G, int clas[][1], int n, double *Tbl, int nTbl, const char *prefix, int y);
 
 #endif
