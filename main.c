@@ -5,28 +5,31 @@
 #include "fem_funciones.h"
 
 #define TIEMPO_INICIAL 0
-#define TIEMPO_FINAL 1
-#define TIEMPO_DELTA 100
-#define MAX_CLAS_EXT 1
-#define MAX_CLAS_INT 1
+#define TIEMPO_FINAL 6
+#define TIEMPO_DELTA 200
+#define MAX_CLAS_EXT 2
+#define MAX_CLAS_INT 2
 #define TERMINO_TEMPORAL 1
 
 int main(int argc, char *argv[]) {
+    double cond_init_ext[MAX_CLAS_EXT] = {0,0};
+    double cond_init_int[MAX_CLAS_INT] = {0,0};
+
+    double cond_dir_ext[MAX_CLAS_EXT] = {10,NAN};
+    double cond_dir_int[MAX_CLAS_INT] = {NAN, NAN};
+
     if (argc < 2) {
-        printf("Error: No se ingresó el nombre del archivo.\n");
+        printf("Error: Faltan parametros.\n");
         return 1;
     }
+    
     const char *ARCHIVO_BASE = argv[1];
-    printf("Iniciando el programa...\n");
 
-    double cond_init_ext[MAX_CLAS_EXT] = {10};
-    double cond_init_int[MAX_CLAS_INT] = {0};
-    double cond_dir_ext[MAX_CLAS_EXT] = {10};
-    double cond_dir_int[MAX_CLAS_INT] = {0};
+    printf("Iniciando el programa...\n");
 
     double puntos[MAX_LIST_LENGTH][2]; 
     int triangulos[MAX_LIST_LENGTH][3];  
-    char clasificaciones[MAX_LIST_LENGTH][MAX_CELL_LENGTH]; 
+    int clasificaciones[MAX_LIST_LENGTH][1]; 
     int n_p = 0; 
     int n_t = 0;  
     int n_c = 0;  
@@ -34,7 +37,9 @@ int main(int argc, char *argv[]) {
     char nombre_archivo_t[MAX_CELL_LENGTH];
     char nombre_archivo_c[MAX_CELL_LENGTH];
     char nombre_archivo_csv[MAX_CELL_LENGTH];
+    char nombre_archivo_bin[MAX_CELL_LENGTH];
 
+    snprintf(nombre_archivo_bin, MAX_CELL_LENGTH, "resultado_U_de_%s.bin", ARCHIVO_BASE);
     snprintf(nombre_archivo_csv, MAX_CELL_LENGTH, "resultado_U_de_%s.csv", ARCHIVO_BASE);
     snprintf(nombre_archivo_p, MAX_CELL_LENGTH, "%s_puntos.csv", ARCHIVO_BASE);
     snprintf(nombre_archivo_t, MAX_CELL_LENGTH, "%s_elementos.csv", ARCHIVO_BASE);
@@ -91,18 +96,13 @@ int main(int argc, char *argv[]) {
         perror("Error al abrir el archivo G_clasificaciones.csv");
         return 1;
     }
-
-    while (fgets(line, sizeof(line), file_clasificaciones)) {
-        line[strcspn(line, "\n")] = 0;
-        if (n_c < MAX_LIST_LENGTH) {
-            strncpy(clasificaciones[n_c], line, MAX_CELL_LENGTH - 1);
-            clasificaciones[n_c][MAX_CELL_LENGTH - 1] = '\0';
-            n_c++;
-        }
+    int valor;
+    while (n_c < MAX_LIST_LENGTH && fscanf(file_clasificaciones, "%d", &valor) == 1) {
+        clasificaciones[n_c][0] = valor;
+        n_c++;
     }
-
     fclose(file_clasificaciones);
-    printf("Archivo de clasificaciones leído.\n");
+    printf("Archivo de clasificaciones leído. Total de clasificaciones: %d\n", n_c);
 
     printf("Inicializando matrices globales y vector F...\n");
     double **G = malloc(n_p * sizeof(double *));
@@ -179,10 +179,10 @@ int main(int argc, char *argv[]) {
     printf("Matrices globales construidas.\n");
 
     if (TERMINO_TEMPORAL){
-        borrar_contenido_archivo("resultados_U.bin");
+        borrar_contenido_archivo(nombre_archivo_bin);
 
         double k_t = (TIEMPO_FINAL-TIEMPO_INICIAL) / (1.0 * TIEMPO_DELTA);
-    
+
         double **Gt = malloc(n_p * sizeof(double *));
         double *Ft = malloc(n_p * sizeof(double));
         double *U = malloc(n_p * sizeof(double));
@@ -200,12 +200,13 @@ int main(int argc, char *argv[]) {
         memset(Ft, 0, n_p * sizeof(double));
         memset(U, 0, n_p * sizeof(double));
 
-        aplicar_init(cond_init_ext, MAX_CLAS_EXT, puntos, U, clasificaciones, n_p, "ext");
-        aplicar_init(cond_init_int, MAX_CLAS_INT, puntos, U, clasificaciones, n_p, "int");
-
+        aplicar_init(cond_init_ext, MAX_CLAS_EXT, puntos, U, clasificaciones, n_p, "ext",1);
+      
+        aplicar_init(cond_init_int, MAX_CLAS_INT, puntos, U, clasificaciones, n_p, "int",-1);
+        
         mulMatVec(n_p, n_p, M, U, Ft);
-
-        guardar_vectores_bin("resultados_U.bin",U, n_p, 0);
+        
+        guardar_vectores_bin(nombre_archivo_bin, U, n_p, 0);
 
         for (int j = 0; j < n_p; j++) {Ft[j] +=F[j]*k_t;}
 
@@ -226,24 +227,20 @@ int main(int argc, char *argv[]) {
 
         printf("Aplicando condiciones de frontera a las matrices...\n");
 
-        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
-        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
-        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
-        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext",1);
+        aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int",-1);
+        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext",1);
+        aplicar_dir_M(Gt, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int",-1);
 
         invertMatrix(n_p,Gt,invGt);
-        
-        printf("...\n");
-        printf("%d",n_p);
+
         printf("Comenzando iteración transitoria...\n");
         for (int t = 0; t <= TIEMPO_DELTA; t++) {
             printf("Tiempo calculado: %3f s\n",k_t*t);
-            
+            //printVec(U,n_p,11);
             mulMatVec(n_p, n_p, invGt, Ft, U);
             
-            printVec(U,n_p,9);
-
-            guardar_vectores_bin("resultados_U.bin",U, n_p, t+1);
+            guardar_vectores_bin(nombre_archivo_bin, U, n_p, t+1);
 
             mulMatVec(n_p, n_p, M, U, Ft);
             
@@ -251,9 +248,10 @@ int main(int argc, char *argv[]) {
                 Ft[j] =Ft[j]+F[j]*k_t;
             }
             
-            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
-            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext",1);
+            aplicar_dir_V(Ft, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int",-1);
         }
+        guardarVectorCSV(nombre_archivo_csv,U,n_p);
 
         for (int i = 0; i < n_p; i++) {
             free(invGt[i]);
@@ -275,10 +273,10 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
-        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "ext");
-        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext");
-        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int");
+        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext",1);
+        aplicar_dir_V(F, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "ext",1);
+        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_ext, MAX_CLAS_EXT, "ext",-1);
+        aplicar_dir_M(G, clasificaciones, n_p, cond_dir_int, MAX_CLAS_INT, "int",-1);
 
         double **invG = malloc(n_p * sizeof(double *));
         double *U = malloc(n_p * sizeof(double));
@@ -308,6 +306,7 @@ int main(int argc, char *argv[]) {
         free(F);
 
         guardarVectorCSV(nombre_archivo_csv, U, n_p);
+        guardar_vectores_bin(nombre_archivo_bin, U, n_p,0);
 
         for (int i = 0; i < n_p; i++) {
             free(invG[i]);
